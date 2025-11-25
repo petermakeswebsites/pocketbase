@@ -74,6 +74,11 @@ type ApiScenario struct {
 	// Leave both fields empty if you want to ensure that the response didn't have any body (e.g. 204).
 	NotExpectedContent []string
 
+	// ExpectedContentFunc allows defining a custom function to validate the response body.
+	// It is useful when you need more complex validation logic (regex, exact JSON match, etc.)
+	// that cannot be achieved with just ExpectedContent/NotExpectedContent.
+	ExpectedContentFunc func(content string) error
+
 	// List of hook events to check whether they were fired or not.
 	//
 	// You can use the wildcard "*" event key if you want to ensure
@@ -252,7 +257,7 @@ func (scenario *ApiScenario) test(t testing.TB) {
 			time.Sleep(scenario.Delay)
 		}
 
-		if len(scenario.ExpectedContent) == 0 && len(scenario.NotExpectedContent) == 0 {
+		if len(scenario.ExpectedContent) == 0 && len(scenario.NotExpectedContent) == 0 && scenario.ExpectedContentFunc == nil {
 			if len(recorder.Body.Bytes()) != 0 {
 				t.Errorf("Expected empty body, got \n%v", recorder.Body.String())
 			}
@@ -279,6 +284,12 @@ func (scenario *ApiScenario) test(t testing.TB) {
 				if strings.Contains(normalizedBody, item) {
 					t.Errorf("Didn't expect %v in response body \n%v", item, normalizedBody)
 					break
+				}
+			}
+
+			if scenario.ExpectedContentFunc != nil {
+				if err := scenario.ExpectedContentFunc(normalizedBody); err != nil {
+					t.Errorf("ExpectedContentFunc failed: %v\nBody: %v", err, normalizedBody)
 				}
 			}
 		}
