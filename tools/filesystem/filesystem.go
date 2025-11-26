@@ -20,6 +20,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/pocketbase/pocketbase/tools/filesystem/blob"
 	"github.com/pocketbase/pocketbase/tools/filesystem/internal/fileblob"
+	"github.com/pocketbase/pocketbase/tools/filesystem/internal/remoteblob"
 	"github.com/pocketbase/pocketbase/tools/filesystem/internal/s3blob"
 	"github.com/pocketbase/pocketbase/tools/filesystem/internal/s3blob/s3"
 	"github.com/pocketbase/pocketbase/tools/list"
@@ -36,6 +37,35 @@ const metadataOriginalName = "original-filename"
 type System struct {
 	ctx    context.Context
 	bucket *blob.Bucket
+}
+
+// NewRemote initializes a new remote (FTP/SFTP) filesystem instance.
+// connType should be "ftp" or "sftp".
+//
+// NB! Make sure to call `Close()` after you are done working with it.
+func NewRemote(
+	host string,
+	port int,
+	user string,
+	password string,
+	connType string,
+) (*System, error) {
+	ctx := context.Background()
+
+	opts := remoteblob.Options{
+		Host:     host,
+		Port:     port,
+		User:     user,
+		Password: password,
+		Type:     connType,
+	}
+
+	drv, err := remoteblob.New(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &System{ctx: ctx, bucket: blob.NewBucket(drv)}, nil
 }
 
 // NewS3 initializes an S3 filesystem instance.

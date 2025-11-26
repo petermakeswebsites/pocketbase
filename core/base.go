@@ -705,43 +705,67 @@ func (app *BaseApp) NewMailClient() mailer.Mailer {
 	return client
 }
 
-// NewFilesystem creates a new local or S3 filesystem instance
+// NewFilesystem creates a new local, remote, or S3 filesystem instance
 // for managing regular app files (ex. record uploads)
 // based on the current app settings.
 //
 // NB! Make sure to call Close() on the returned result
 // after you are done working with it.
 func (app *BaseApp) NewFilesystem() (*filesystem.System, error) {
-	if app.settings != nil && app.settings.S3.Enabled {
-		return filesystem.NewS3(
-			app.settings.S3.Bucket,
-			app.settings.S3.Region,
-			app.settings.S3.Endpoint,
-			app.settings.S3.AccessKey,
-			app.settings.S3.Secret,
-			app.settings.S3.ForcePathStyle,
-		)
+	if app.settings != nil {
+		if app.settings.S3.Enabled {
+			return filesystem.NewS3(
+				app.settings.S3.Bucket,
+				app.settings.S3.Region,
+				app.settings.S3.Endpoint,
+				app.settings.S3.AccessKey,
+				app.settings.S3.Secret,
+				app.settings.S3.ForcePathStyle,
+			)
+		}
+
+		if app.settings.Remote.Enabled {
+			return filesystem.NewRemote(
+				app.settings.Remote.Host,
+				app.settings.Remote.Port,
+				app.settings.Remote.User,
+				app.settings.Remote.Password,
+				app.settings.Remote.Type,
+			)
+		}
 	}
 
 	// fallback to local filesystem
 	return filesystem.NewLocal(filepath.Join(app.DataDir(), LocalStorageDirName))
 }
 
-// NewBackupsFilesystem creates a new local or S3 filesystem instance
+// NewBackupsFilesystem creates a new local, remote or S3 filesystem instance
 // for managing app backups based on the current app settings.
 //
 // NB! Make sure to call Close() on the returned result
 // after you are done working with it.
 func (app *BaseApp) NewBackupsFilesystem() (*filesystem.System, error) {
-	if app.settings != nil && app.settings.Backups.S3.Enabled {
-		return filesystem.NewS3(
-			app.settings.Backups.S3.Bucket,
-			app.settings.Backups.S3.Region,
-			app.settings.Backups.S3.Endpoint,
-			app.settings.Backups.S3.AccessKey,
-			app.settings.Backups.S3.Secret,
-			app.settings.Backups.S3.ForcePathStyle,
-		)
+	if app.settings != nil {
+		if app.settings.Backups.S3.Enabled {
+			return filesystem.NewS3(
+				app.settings.Backups.S3.Bucket,
+				app.settings.Backups.S3.Region,
+				app.settings.Backups.S3.Endpoint,
+				app.settings.Backups.S3.AccessKey,
+				app.settings.Backups.S3.Secret,
+				app.settings.Backups.S3.ForcePathStyle,
+			)
+		}
+
+		if app.settings.Backups.Remote.Enabled {
+			return filesystem.NewRemote(
+				app.settings.Backups.Remote.Host,
+				app.settings.Backups.Remote.Port,
+				app.settings.Backups.Remote.User,
+				app.settings.Backups.Remote.Password,
+				app.settings.Backups.Remote.Type,
+			)
+		}
 	}
 
 	// fallback to local filesystem

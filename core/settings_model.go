@@ -123,6 +123,7 @@ type settings struct {
 	SMTP         SMTPConfig         `form:"smtp" json:"smtp"`
 	Backups      BackupsConfig      `form:"backups" json:"backups"`
 	S3           S3Config           `form:"s3" json:"s3"`
+	Remote       RemoteConfig       `form:"remote" json:"remote"`
 	Meta         MetaConfig         `form:"meta" json:"meta"`
 	RateLimits   RateLimitsConfig   `form:"rateLimits" json:"rateLimits"`
 	TrustedProxy TrustedProxyConfig `form:"trustedProxy" json:"trustedProxy"`
@@ -283,6 +284,7 @@ func (s *Settings) PostValidate(ctx context.Context, app App) error {
 		validation.Field(&s.Logs),
 		validation.Field(&s.SMTP),
 		validation.Field(&s.S3),
+		validation.Field(&s.Remote),
 		validation.Field(&s.Backups),
 		validation.Field(&s.Batch),
 		validation.Field(&s.RateLimits),
@@ -331,6 +333,8 @@ func (s *Settings) MarshalJSON() ([]byte, error) {
 		&copy.SMTP.Password,
 		&copy.S3.Secret,
 		&copy.Backups.S3.Secret,
+		&copy.Remote.Password,
+		&copy.Backups.Remote.Password,
 	}
 
 	// mask all sensitive fields
@@ -417,6 +421,27 @@ func (c S3Config) Validate() error {
 
 // -------------------------------------------------------------------
 
+type RemoteConfig struct {
+	Enabled  bool   `form:"enabled" json:"enabled"`
+	Host     string `form:"host" json:"host"`
+	Port     int    `form:"port" json:"port"`
+	User     string `form:"user" json:"user"`
+	Password string `form:"password" json:"password,omitempty"`
+	Type     string `form:"type" json:"type"` // "ftp" or "sftp"
+}
+
+// Validate makes RemoteConfig validatable
+func (c RemoteConfig) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.Host, validation.When(c.Enabled, validation.Required)),
+		validation.Field(&c.Port, validation.When(c.Enabled, validation.Required), validation.Min(1)),
+		validation.Field(&c.User, validation.When(c.Enabled, validation.Required)),
+		validation.Field(&c.Type, validation.When(c.Enabled, validation.Required), validation.In("ftp", "sftp")),
+	)
+}
+
+// -------------------------------------------------------------------
+
 type BatchConfig struct {
 	Enabled bool `form:"enabled" json:"enabled"`
 
@@ -457,12 +482,16 @@ type BackupsConfig struct {
 
 	// S3 is an optional S3 storage config specifying where to store the app backups.
 	S3 S3Config `form:"s3" json:"s3"`
+
+	// Remote is an optional remote storage config specifying where to store the app backups.
+	Remote RemoteConfig `form:"remote" json:"remote"`
 }
 
 // Validate makes BackupsConfig validatable by implementing [validation.Validatable] interface.
 func (c BackupsConfig) Validate() error {
 	return validation.ValidateStruct(&c,
 		validation.Field(&c.S3),
+		validation.Field(&c.Remote),
 		validation.Field(&c.Cron, validation.By(checkCronExpression)),
 		validation.Field(
 			&c.CronMaxKeep,

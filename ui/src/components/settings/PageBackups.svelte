@@ -13,10 +13,10 @@
     import SettingsSidebar from "@/components/settings/SettingsSidebar.svelte";
     import BackupsList from "@/components/settings/BackupsList.svelte";
     import S3Fields from "@/components/settings/S3Fields.svelte";
+    import RemoteFields from "@/components/settings/RemoteFields.svelte"; //
     import BackupUploadButton from "@/components/settings/BackupUploadButton.svelte";
 
     $pageTitle = "Backups";
-
     let backupsListComponent;
     let originalFormSettings = {};
     let formSettings = {};
@@ -25,13 +25,18 @@
     let initialHash = "";
     let enableAutoBackups = false;
     let showBackupsSettings = false;
-    let isTesting = false;
-    let testError = null;
+
+    // S3 State
+    let isTestingS3 = false;
+    let testErrorS3 = null;
+
+    // Remote State
+    let isTestingRemote = false;
+    let testErrorRemote = null;
 
     $: initialHash = JSON.stringify(originalFormSettings);
 
     $: hasChanges = initialHash != JSON.stringify(formSettings);
-
     $: if (!enableAutoBackups && formSettings?.backups?.cron) {
         removeError("backups.cron");
         formSettings.backups.cron = "";
@@ -41,7 +46,6 @@
 
     async function loadSettings() {
         isLoading = true;
-
         try {
             const settings = (await ApiClient.settings.getAll()) || {};
             init(settings);
@@ -58,12 +62,10 @@
         }
 
         isSaving = true;
-
         try {
             const settings = await ApiClient.settings.update(CommonHelper.filterRedactedProps(formSettings));
 
             setErrors({});
-
             await refreshList();
 
             init(settings);
@@ -151,7 +153,6 @@
                                 <div class="col-lg-6">
                                     <Field class="form-field required" name="backups.cron" let:uniqueId>
                                         <label for={uniqueId}>Cron expression</label>
-                                        <!-- svelte-ignore a11y-autofocus -->
                                         <input
                                             required
                                             type="text"
@@ -166,74 +167,22 @@
                                                 <span class="txt">Presets</span>
                                                 <i class="ri-arrow-drop-down-fill" />
                                                 <Toggler class="dropdown dropdown-nowrap dropdown-right">
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item closable"
-                                                        on:click={() => {
-                                                            formSettings.backups.cron = "0 0 * * *";
-                                                        }}
-                                                    >
-                                                        <span class="txt">Every day at 00:00h</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item closable"
-                                                        on:click={() => {
-                                                            formSettings.backups.cron = "0 0 * * 0";
-                                                        }}
-                                                    >
-                                                        <span class="txt">Every sunday at 00:00h</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item closable"
-                                                        on:click={() => {
-                                                            formSettings.backups.cron = "0 0 * * 1,3";
-                                                        }}
-                                                    >
-                                                        <span class="txt">Every Mon and Wed at 00:00h</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item closable"
-                                                        on:click={() => {
-                                                            formSettings.backups.cron = "0 0 1 * *";
-                                                        }}
-                                                    >
-                                                        <span class="txt">
-                                                            Every first day of the month at 00:00h
-                                                        </span>
-                                                    </button>
+                                                    <button type="button" class="dropdown-item closable" on:click={() => { formSettings.backups.cron = "0 0 * * *"; }}><span class="txt">Every day at 00:00h</span></button>
+                                                    <button type="button" class="dropdown-item closable" on:click={() => { formSettings.backups.cron = "0 0 * * 0"; }}><span class="txt">Every sunday at 00:00h</span></button>
+                                                    <button type="button" class="dropdown-item closable" on:click={() => { formSettings.backups.cron = "0 0 * * 1,3"; }}><span class="txt">Every Mon and Wed at 00:00h</span></button>
+                                                    <button type="button" class="dropdown-item closable" on:click={() => { formSettings.backups.cron = "0 0 1 * *"; }}><span class="txt">Every first day of the month at 00:00h</span></button>
                                                 </Toggler>
                                             </button>
                                         </div>
                                         <div class="help-block">
-                                            <!-- prettier-ignore -->
-                                            <p>
-                                                Supports numeric list, steps, ranges or
-                                                <span
-                                                    class="link-primary"
-                                                    use:tooltip={"@yearly\n@annually\n@monthly\n@weekly\n@daily\n@midnight\n@hourly"}
-                                                >macros</span>.
-                                                <br>
-                                                The timezone is in UTC.
-                                            </p>
+                                            <p>Supports numeric list, steps, ranges or <span class="link-primary" use:tooltip={"@yearly\n@annually\n@monthly\n@weekly\n@daily\n@midnight\n@hourly"}>macros</span>.<br>The timezone is in UTC.</p>
                                         </div>
                                     </Field>
                                 </div>
                                 <div class="col-lg-6">
-                                    <Field
-                                        class="form-field required"
-                                        name="backups.cronMaxKeep"
-                                        let:uniqueId
-                                    >
+                                    <Field class="form-field required" name="backups.cronMaxKeep" let:uniqueId>
                                         <label for={uniqueId}>Max @auto backups to keep</label>
-                                        <input
-                                            type="number"
-                                            id={uniqueId}
-                                            min="1"
-                                            bind:value={formSettings.backups.cronMaxKeep}
-                                        />
+                                        <input type="number" id={uniqueId} min="1" bind:value={formSettings.backups.cronMaxKeep} />
                                     </Field>
                                 </div>
                             </div>
@@ -248,21 +197,17 @@
                         configKey="backups.s3"
                         originalConfig={originalFormSettings.backups?.s3}
                         bind:config={formSettings.backups.s3}
-                        bind:isTesting
-                        bind:testError
+                        bind:isTesting={isTestingS3}
+                        bind:testError={testErrorS3}
                     />
 
-                    <div class="flex">
-                        <div class="flex-fill" />
-
-                        {#if formSettings.backups?.s3?.enabled && !hasChanges && !isSaving}
-                            {#if isTesting}
+                    {#if formSettings.backups?.s3?.enabled}
+                        <div class="flex m-b-base">
+                            <div class="flex-fill"></div>
+                            {#if isTestingS3}
                                 <span class="loader loader-sm" />
-                            {:else if testError}
-                                <div
-                                    class="label label-sm label-warning entrance-right"
-                                    use:tooltip={testError.data?.message}
-                                >
+                            {:else if testErrorS3}
+                                <div class="label label-sm label-warning entrance-right" use:tooltip={testErrorS3.data?.message}>
                                     <i class="ri-error-warning-line txt-warning" />
                                     <span class="txt">Failed to establish S3 connection</span>
                                 </div>
@@ -272,8 +217,42 @@
                                     <span class="txt">S3 connected successfully</span>
                                 </div>
                             {/if}
-                        {/if}
+                        </div>
+                    {/if}
 
+                    <div class="clearfix m-b-base" />
+
+                    <RemoteFields
+                        toggleLabel="Store backups in FTP/SFTP storage"
+                        testFilesystem="backups"
+                        configKey="backups.remote"
+                        originalConfig={originalFormSettings.backups?.remote}
+                        bind:config={formSettings.backups.remote}
+                        bind:isTesting={isTestingRemote}
+                        bind:testError={testErrorRemote}
+                    />
+
+                    {#if formSettings.backups?.remote?.enabled}
+                        <div class="flex m-b-base">
+                            <div class="flex-fill"></div>
+                            {#if isTestingRemote}
+                                <span class="loader loader-sm" />
+                            {:else if testErrorRemote}
+                                <div class="label label-sm label-warning entrance-right" use:tooltip={testErrorRemote.data?.message}>
+                                    <i class="ri-error-warning-line txt-warning" />
+                                    <span class="txt">Failed to establish connection</span>
+                                </div>
+                            {:else}
+                                <div class="label label-sm label-success entrance-right">
+                                    <i class="ri-checkbox-circle-line txt-success" />
+                                    <span class="txt">FTP/SFTP connected successfully</span>
+                                </div>
+                            {/if}
+                        </div>
+                    {/if}
+
+                    <div class="flex">
+                        <div class="flex-fill" />
                         {#if hasChanges}
                             <button
                                 type="button"
