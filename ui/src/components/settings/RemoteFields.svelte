@@ -21,6 +21,12 @@
     let testDebounceId = null;
     let maskPassword = false;
 
+    // Define options as objects for ObjectSelect
+    const protocolOptions = [
+        { value: "ftp", label: "FTP" },
+        { value: "sftp", label: "SFTP" },
+    ];
+
     $: if (originalConfig?.enabled) {
         refreshMaskPassword();
         testConnectionWithDebounce(100);
@@ -65,7 +71,6 @@
         let err;
 
         try {
-            // Ensure you've added the corresponding testRemote endpoint to your ApiClient
             await ApiClient.settings.testRemote(testFilesystem, {
                 $cancelKey: testRequestKey,
             });
@@ -116,7 +121,7 @@
                 <label for={uniqueId}>Protocol</label>
                 <ObjectSelect
                     id={uniqueId}
-                    items={['ftp', 'sftp']}
+                    items={protocolOptions}
                     bind:keyOfSelected={config.type}
                 />
             </Field>
